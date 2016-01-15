@@ -597,8 +597,9 @@ int recv_xattr_request(struct file_struct *file, int f_in)
 {
 	item_list *lst = rsync_xal_l.items;
 	char *old_datum, *name;
+	rsync_xa *rxas;
 	rsync_xa *rxa;
-	int rel_pos, cnt, num, got_xattr_data = 0;
+	int i, rel_pos, cnt, num, got_xattr_data = 0;
 
 	if (F_XATTR(file) < 0) {
 		rprintf(FERROR, "recv_xattr_request: internal data error!\n");
@@ -606,16 +607,21 @@ int recv_xattr_request(struct file_struct *file, int f_in)
 	}
 	lst += F_XATTR(file);
 
-	cnt = lst->count;
-	rxa = lst->items;
+	i = 0;
+	rxas = lst->items;
 	num = 0;
 	while ((rel_pos = read_varint(f_in)) != 0) {
+		cnt = lst->count;
 		num += rel_pos;
 		/* Note that the sender-related num values may not be in order on the receiver! */
-		while (cnt && (am_sender ? rxa->num < num : rxa->num != num)) {
-			rxa++;
+		while (cnt && rxas[i].num != num) {
+			i++;
 			cnt--;
+			if (i == (int)lst->count) {
+				i = 0;
+			}
 		}
+		rxa = rxas + i;
 		if (!cnt || rxa->num != num) {
 			rprintf(FERROR, "[%s] could not find xattr #%d for %s\n",
 				who_am_i(), num, f_name(file, NULL));
